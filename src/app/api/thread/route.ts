@@ -1,0 +1,33 @@
+import { chatRepository } from "lib/db/repository";
+// import { getSession } from "auth/server";
+import { getMockSession } from "lib/auth/mock-session";
+import { redirect } from "next/navigation";
+import { generateUUID } from "lib/utils";
+import { generateTitleFromUserMessageAction } from "../chat/actions";
+
+export async function POST(request: Request) {
+  const { id, projectId, message, model } = await request.json();
+
+  // const session = await getSession();
+  const session = getMockSession();
+
+  if (!session?.user.id) {
+    return redirect("/sign-in");
+  }
+
+  const title = await generateTitleFromUserMessageAction({
+    message,
+    model,
+  });
+
+  const newThread = await chatRepository.insertThread({
+    id: id ?? generateUUID(),
+    projectId,
+    title,
+    userId: session.user.id,
+  });
+
+  return Response.json({
+    threadId: newThread.id,
+  });
+}
