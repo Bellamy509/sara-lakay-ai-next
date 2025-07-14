@@ -31,20 +31,27 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
 ENV DISPLAY=:99
 
-# First copy package files and essential scripts
+# Copy package files and scripts
 COPY package.json pnpm-lock.yaml ./
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY lib ./lib
 
-# Install dependencies with frozen lockfile and no postinstall script
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
+# Temporarily modify package.json to remove postinstall script
+RUN cp package.json package.json.orig && \
+    node -e "const pkg=require('./package.json'); delete pkg.scripts.postinstall; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2))"
+
+# Install dependencies with frozen lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+
+# Restore original package.json
+RUN mv package.json.orig package.json
 
 # Now copy the rest of the application
 COPY . .
 
-# Run postinstall script manually after all files are copied
-RUN node -r tsx/esm scripts/postinstall.ts
+# Run postinstall script manually
+RUN pnpm tsx scripts/postinstall.ts
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
